@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>FC Online Live Stats Update</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #fff; margin: 0; padding: 20px; }
+        h2 { text-align: center; color: #00ffcc; margin-bottom: 30px; }
+        
+        .main-container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+        /* --- STYLES DÙNG CHUNG CHO KHỐI THU GỌN --- */
+        .collapsible-section { background: #1e1e1e; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .collapsible-btn { background: #222; color: #00ffcc; width: 100%; text-align: left; padding: 15px 20px; border: none; cursor: pointer; font-size: 1.1em; font-weight: bold; display: flex; justify-content: space-between; align-items: center; outline: none; border-bottom: 1px solid #333; }
+        .collapsible-btn:hover { background: #2a2a2a; }
+        .collapsible-content { padding: 15px 20px; background: #fff; color: #000; }
+        /* Nội dung tối cho phần Chỉ số chi tiết */
+        .dark-content { background: #1e1e1e; color: #fff; }
+
+        /* --- PHẦN 1: CHỈ SỐ CHI TIẾT --- */
+        .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 5px; }
+        .stat-item { display: flex; justify-content: space-between; align-items: center; background: #2a2a2a; padding: 8px 12px; border-radius: 5px; font-size: 0.9em; }
+        .stat-item input { width: 50px; background: #121212; color: #00ffcc; border: 1px solid #444; border-radius: 3px; padding: 4px; text-align: center; font-weight: bold;}
+        
+        /* --- PHẦN 2: HÀNG CÀI ĐẶT (BUFF & TEAM COLOR) --- */
+        .settings-row { display: flex; gap: 20px; flex-wrap: wrap; }
+        .settings-col { flex: 1; min-width: 350px; display: flex; flex-direction: column; }
+        
+        .fo4-buff-widget { font-family: Arial, sans-serif; }
+        .buff-row { display: flex; align-items: center; margin-bottom: 10px; }
+        .buff-row:last-child { margin-bottom: 0; }
+        .buff-label { width: 80px; text-align: center; font-weight: bold; padding: 8px 0; border-radius: 3px; margin-right: 10px; flex-shrink: 0; font-size: 14px; display: flex; align-items: center; justify-content: center; height: 36px; }
+        .lbl-level { background: #c89600; color: #fff; }
+        .lbl-grade { background: #3e2723; color: #fff; }
+        .lbl-bonus { background: #b8008a; color: #fff; }
+        .lbl-tc { background: #fd2d87; color: #fff; }
+        
+        .buff-btns-container { display: flex; flex-wrap: wrap; gap: 6px; }
+        .buff-btn { border: none; min-width: 40px; height: 36px; border-radius: 3px; font-weight: bold; cursor: pointer; text-align: center; font-size: 14px; transition: 0.1s; }
+        
+        .btn-level { background: #e8f5e9; color: #2e7d32; }
+        .btn-level.active { background: #3e2723; color: #ffeb3b; }
+        .btn-grade { background: #d7ccc8; color: #fff; }
+        .btn-grade.active { background: #3e2723; color: #ffeb3b; }
+        .btn-bonus { background: #f48fb1; color: #fff; }
+        .btn-bonus.active { background: #b8008a; color: #fff; }
+        .btn-tc { background: #ff8de8; color: #fff; }
+        .btn-tc.active { background: #fd2d87; color: #fff; }
+
+        /* Input tìm kiếm Team Color */
+        .tc-input { flex: 1; min-width: 140px; padding: 0 10px; height: 36px; border-radius: 4px; border: 1px solid #ccc; font-weight: bold; margin-right: 10px; outline: none; }
+        .tc-input:focus { border-color: #f71197; box-shadow: 0 0 5px rgba(238, 28, 130, 0.3); }
+
+        /* --- PHẦN 3: SÂN ĐẤU VÀ ĐÀO TẠO --- */
+        .middle-section { display: flex; gap: 20px; flex-wrap: wrap; }
+        
+        /* Trái: Sân đấu */
+        .pitch-container { flex: 2; min-width: 600px; display: flex; flex-direction: column; background: #1e1e1e; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .section-title { margin-top: 0; color: #ffeb3b; font-size: 1.2em; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 15px; }
+        .pitch { position: relative; width: 100%; aspect-ratio: 1.5 / 1; background: #2b2b2b; border: 2px solid #555; border-radius: 5px; overflow: hidden; background-image: repeating-linear-gradient(90deg, transparent, transparent 10%, rgba(255,255,255,0.03) 10%, rgba(255,255,255,0.03) 20%); margin: auto; }
+        .pitch::before { content: ''; position: absolute; top: 0; left: 50%; width: 2px; height: 100%; background: #555; transform: translateX(-50%); }
+        .pitch::after { content: ''; position: absolute; top: 50%; left: 50%; width: 18%; aspect-ratio: 1; border: 2px solid #555; border-radius: 50%; transform: translate(-50%, -50%); }
+
+        .player-node { position: absolute; transform: translate(-50%, -50%); width: 52px; height: 52px; border-radius: 50%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #2a2a2a; border: 3px solid; box-shadow: 0 4px 6px rgba(0,0,0,0.4); z-index: 5;}
+        .player-node .pos-name { font-size: 0.65em; color: #ccc; font-weight: bold; }
+        .player-node .pos-ovr { font-size: 1em; color: #fff; font-weight: bold; }
+
+        .def { border-color: #2196F3; } .mid { border-color: #4CAF50; } .att { border-color: #F44336; }
+
+        #SW { left: 10%; top: 50%; } #CB { left: 22%; top: 50%; } #LB { left: 13%; top: 20%; } #RB { left: 13%; top: 80%; }
+        #LWB { left: 25%; top: 12%; } #RWB { left: 25%; top: 88%; } #CDM { left: 35%; top: 50%; } #CM { left: 50%; top: 50%; }
+        #LM { left: 50%; top: 25%; } #RM { left: 50%; top: 75%; } #CAM { left: 65%; top: 50%; } #LW { left: 80%; top: 15%; }
+        #RW { left: 80%; top: 85%; } #CF { left: 80%; top: 50%; } #ST { left: 92%; top: 50%; }
+
+        /* Phải: Đào tạo */
+        .training-container { flex: 1; min-width: 350px; background: #1e1e1e; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); display: flex; flex-direction: column; }
+        .training-wrapper { flex: 1; display: flex; flex-direction: column; background: #1e1e1e; border-radius: 8px; border: 1px solid #444; }
+        .training-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #222; border-bottom: 1px solid #444; border-radius: 8px 8px 0 0; }
+        .training-header h3 { margin: 0; color: #00ffcc; font-size: 1.1em; }
+        .training-header select { background: #121212; color: #fff; border: 1px solid #555; padding: 6px 10px; border-radius: 4px; font-weight: bold; outline: none; cursor: pointer; font-size: 1em;}
+        .training-body { background: #fff; color: #000; flex: 1; max-height: 550px; overflow-y: auto; border-radius: 0 0 8px 8px; position: relative; }
+        .training-row.header { position: sticky; top: 0; background: #f9f9f9; display: flex; justify-content: space-between; font-weight: bold; padding: 12px 20px; border-bottom: 1px solid #ddd; z-index: 10; font-size: 1em; }
+        .training-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-bottom: 1px solid #eee; }
+        .training-row:last-child { border-bottom: none; }
+        .training-controls { display: flex; align-items: center; gap: 10px; }
+        .btn-train { border: none; width: 30px; height: 30px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 1.2em; display: flex; align-items: center; justify-content: center; user-select: none; }
+        .btn-train.minus { background: #dcdcdc; color: #fff; }
+        .btn-train.minus.active { background: #aaa; }
+        .btn-train.plus { background: #2e8b57; color: #fff; }
+        .btn-train.plus:hover { background: #246b43; }
+        .train-val { font-weight: bold; width: 20px; text-align: center; }
+        
+        .training-body::-webkit-scrollbar { width: 8px; }
+        .training-body::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 0 0 8px 0;}
+        .training-body::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+        .training-body::-webkit-scrollbar-thumb:hover { background: #aaa; }
+
+        /* --- PHẦN 4: DÁN DỮ LIỆU Ở CUỐI --- */
+        .bottom-section { background: #1e1e1e; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 15px; }
+        textarea { width: 100%; height: 80px; background: #2a2a2a; color: #fff; border: 1px solid #444; border-radius: 5px; padding: 10px; resize: vertical; }
+        button.btn-update { background: #00ffcc; color: #000; border: none; padding: 15px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 1.1em; width: 100%; transition: 0.2s; }
+        button.btn-update:hover { background: #00ccaa; }
+
+        /* Footer */
+        .footer-signature { text-align: center; margin-top: 30px; padding: 20px 0; color: #888; font-size: 0.9em; border-top: 1px solid #333; letter-spacing: 0.5px; }
+        .footer-signature span { color: #00ffcc; font-weight: bold; }
+
+        @media (max-width: 1024px) {
+            .stat-grid { grid-template-columns: repeat(2, 1fr); }
+            .pitch-container { min-width: 100%; }
+        }
+        @media (max-width: 600px) {
+            .stat-grid { grid-template-columns: 1fr; }
+            .tc-input { margin-bottom: 10px; width: 100%; margin-right: 0;}
+            .buff-row { flex-wrap: wrap; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+
+<h2>FC Online Live Stats Update</h2>
+
+<div class="main-container">
+
+    <div class="collapsible-section">
+        <button class="collapsible-btn" onclick="toggleSection('stats-content', 'stats-icon')">
+            <span>Chỉ số chi tiết</span>
+            <span id="stats-icon">▼</span>
+        </button>
+        <div class="collapsible-content dark-content" id="stats-content" style="display: block;">
+            <div id="editor" class="stat-grid"></div>
+        </div>
+    </div>
+
+    <datalist id="attr-list"></datalist>
+
+    <div class="settings-row">
+        
+        <div class="collapsible-section settings-col">
+            <button class="collapsible-btn" onclick="toggleSection('buff-content', 'buff-icon')">
+                <span>Cấp thẻ, Cấp độ, Bonus</span>
+                <span id="buff-icon">▲</span>
+            </button>
+            <div class="collapsible-content" id="buff-content" style="display: none;">
+                <div class="fo4-buff-widget">
+                    <div class="buff-row">
+                        <div class="buff-label lbl-level">Level</div>
+                        <div class="buff-btns-container" id="level-btns">
+                            <button class="buff-btn btn-level active" onclick="selectBuff('level', 0, this)">1</button>
+                            <button class="buff-btn btn-level" onclick="selectBuff('level', 1, this)">2</button>
+                            <button class="buff-btn btn-level" onclick="selectBuff('level', 2, this)">3</button>
+                            <button class="buff-btn btn-level" onclick="selectBuff('level', 3, this)">4</button>
+                            <button class="buff-btn btn-level" onclick="selectBuff('level', 4, this)">5</button>
+                        </div>
+                    </div>
+                    <div class="buff-row">
+                        <div class="buff-label lbl-grade">Grade</div>
+                        <div class="buff-btns-container" id="grade-btns">
+                            <button class="buff-btn btn-grade active" onclick="selectBuff('grade', 0, this)">+0</button>
+                            <button class="buff-btn btn-grade" onclick="selectBuff('grade', 0, this)">+1</button>
+                            <button class="buff-btn btn-grade" onclick="selectBuff('grade', 1, this)">+2</button>
+                            <button class="buff-btn btn-grade" onclick="selectBuff('grade', 2, this)">+3</button>
+                            <button class="buff-btn btn-grade" onclick="selectBuff('grade', 4, this)">+4</button>
+                            <button class="buff-btn btn-grade" onclick="selectBuff('grade', 6, this)">+5</button>
+                            <button class="buff-btn btn-grade" onclick="selectBuff('grade', 8, this)">+6</button>
+                            <button class="buff-btn btn-grade" onclick="selectBuff('grade', 11, this)">+7</button>
+                            <button class="buff-btn btn-grade" onclick="selectBuff('grade', 15, this)">+8</button>
+                            <button class="buff-btn btn-grade" onclick="selectBuff('grade', 17, this)">+9</button>
+                            <button class="buff-btn btn-grade" onclick="selectBuff('grade', 19, this)">+10</button>
+                            <button class="buff-btn btn-grade" onclick="selectBuff('grade', 21, this)">+11</button>
+                            <button class="buff-btn btn-grade" onclick="selectBuff('grade', 24, this)">+12</button>
+                            <button class="buff-btn btn-grade" onclick="selectBuff('grade', 27, this)">+13</button>
+                        </div>
+                    </div>
+                    <div class="buff-row">
+                        <div class="buff-label lbl-bonus">Bonus</div>
+                        <div class="buff-btns-container" id="bonus-btns">
+                            <button class="buff-btn btn-bonus active" onclick="selectBuff('bonus', 0, this)">0</button>
+                            <button class="buff-btn btn-bonus" onclick="selectBuff('bonus', 1, this)">1</button>
+                            <button class="buff-btn btn-bonus" onclick="selectBuff('bonus', 2, this)">2</button>
+                            <button class="buff-btn btn-bonus" onclick="selectBuff('bonus', 3, this)">3</button>
+                            <button class="buff-btn btn-bonus" onclick="selectBuff('bonus', 4, this)">4</button>
+                            <button class="buff-btn btn-bonus" onclick="selectBuff('bonus', 5, this)">5</button>
+                            <button class="buff-btn btn-bonus" onclick="selectBuff('bonus', 6, this)">6</button>
+                            <button class="buff-btn btn-bonus" onclick="selectBuff('bonus', 7, this)">7</button>
+                            <button class="buff-btn btn-bonus" onclick="selectBuff('bonus', 8, this)">8</button>
+                            <button class="buff-btn btn-bonus" onclick="selectBuff('bonus', 9, this)">9</button>
+                            <button class="buff-btn btn-bonus" onclick="selectBuff('bonus', 10, this)">10</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="collapsible-section settings-col">
+            <button class="collapsible-btn" onclick="toggleSection('tc-content', 'tc-icon')">
+                <span>Team Color</span>
+                <span id="tc-icon">▲</span>
+            </button>
+            <div class="collapsible-content" id="tc-content" style="display: none;">
+                <div class="fo4-buff-widget">
+                    <div class="buff-row">
+                        <div class="buff-label lbl-tc">Chọn 1</div>
+                        <input list="attr-list" class="tc-input" id="tc-input-1" placeholder="Tìm chỉ số..." onchange="updateTeamColor()">
+                        <div class="buff-btns-container">
+                            <button class="buff-btn btn-tc btn-tc1 active" onclick="selectTc(1, 0, this)">0</button>
+                            <button class="buff-btn btn-tc btn-tc1" onclick="selectTc(1, 1, this)">+1</button>
+                            <button class="buff-btn btn-tc btn-tc1" onclick="selectTc(1, 2, this)">+2</button>
+                            <button class="buff-btn btn-tc btn-tc1" onclick="selectTc(1, 3, this)">+3</button>
+                        </div>
+                    </div>
+                    <div class="buff-row" style="margin-top: 15px;">
+                        <div class="buff-label lbl-tc">Chọn 2</div>
+                        <input list="attr-list" class="tc-input" id="tc-input-2" placeholder="Tìm chỉ số..." onchange="updateTeamColor()">
+                        <div class="buff-btns-container">
+                            <button class="buff-btn btn-tc btn-tc2 active" onclick="selectTc(2, 0, this)">0</button>
+                            <button class="buff-btn btn-tc btn-tc2" onclick="selectTc(2, 1, this)">+1</button>
+                            <button class="buff-btn btn-tc btn-tc2" onclick="selectTc(2, 2, this)">+2</button>
+                            <button class="buff-btn btn-tc btn-tc2" onclick="selectTc(2, 3, this)">+3</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="middle-section">
+        <div class="pitch-container">
+            <h3 class="section-title">OVR Sân đấu</h3>
+            <div class="pitch">
+                <div class="player-node def" id="LB"><div class="pos-name">LB</div><div class="pos-ovr">0</div></div>
+                <div class="player-node def" id="SW"><div class="pos-name">SW</div><div class="pos-ovr">0</div></div>
+                <div class="player-node def" id="CB"><div class="pos-name">CB</div><div class="pos-ovr">0</div></div>
+                <div class="player-node def" id="RB"><div class="pos-name">RB</div><div class="pos-ovr">0</div></div>
+                <div class="player-node def" id="LWB"><div class="pos-name">LWB</div><div class="pos-ovr">0</div></div>
+                <div class="player-node def" id="RWB"><div class="pos-name">RWB</div><div class="pos-ovr">0</div></div>
+                <div class="player-node mid" id="CDM"><div class="pos-name">CDM</div><div class="pos-ovr">0</div></div>
+                <div class="player-node mid" id="LM"><div class="pos-name">LM</div><div class="pos-ovr">0</div></div>
+                <div class="player-node mid" id="CM"><div class="pos-name">CM</div><div class="pos-ovr">0</div></div>
+                <div class="player-node mid" id="RM"><div class="pos-name">RM</div><div class="pos-ovr">0</div></div>
+                <div class="player-node mid" id="CAM"><div class="pos-name">CAM</div><div class="pos-ovr">0</div></div>
+                <div class="player-node att" id="LW"><div class="pos-name">LW</div><div class="pos-ovr">0</div></div>
+                <div class="player-node att" id="CF"><div class="pos-name">CF</div><div class="pos-ovr">0</div></div>
+                <div class="player-node att" id="ST"><div class="pos-name">ST</div><div class="pos-ovr">0</div></div>
+                <div class="player-node att" id="RW"><div class="pos-name">RW</div><div class="pos-ovr">0</div></div>
+            </div>
+        </div>
+
+        <div class="training-container">
+            <h3 class="section-title">Huấn luyện viên</h3>
+            <div class="training-wrapper">
+                <div class="training-header">
+                    <h3>Vị trí đào tạo:</h3>
+                    <select id="posSelect" onchange="changePosition()">
+                        <option value="ST">ST</option>
+                        <option value="CF">CF</option>
+                        <option value="LW">LW / RW</option>
+                        <option value="CAM">CAM</option>
+                        <option value="LM">LM / RM</option>
+                        <option value="CM">CM</option>
+                        <option value="CDM">CDM</option>
+                        <option value="LWB">LWB / RWB</option>
+                        <option value="LB">LB / RB</option>
+                        <option value="CB">CB / SW</option>
+                    </select>
+                </div>
+                <div class="training-body">
+                    <div class="training-row header">
+                        <span>Chỉ số</span>
+                        <span>Đào tạo thêm</span>
+                    </div>
+                    <div id="training-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-section">
+        <textarea id="rawInput" placeholder="Dán dữ liệu input.txt tại đây..."></textarea>
+        <button class="btn-update" onclick="parseStats()">Cập nhật dữ liệu</button>
+    </div>
+
+</div>
+
+<div class="footer-signature">
+    <span>Young DNC</span>
+</div>
+
+<script>
+// --- Logic Mở/Thu gọn Sections ---
+function toggleSection(contentId, iconId) {
+    const content = document.getElementById(contentId);
+    const icon = document.getElementById(iconId);
+    if (content.style.display === "block" || content.style.display === "") {
+        content.style.display = "none";
+        icon.innerText = "▲"; // Mũi tên chỉ lên báo hiệu đang đóng
+    } else {
+        content.style.display = "block";
+        icon.innerText = "▼"; // Mũi tên chỉ xuống báo hiệu đang mở
+    }
+}
+
+// --- Dữ liệu các chỉ số ---
+const ATTRIBUTES = [
+    "Tốc độ", "Tăng tốc", "Dứt điểm", "Lực sút", "Sút xa", "Chọn vị trí", "Vô lê", "Penalty",
+    "Chuyền ngắn", "Tầm nhìn", "Tạt bóng", "Chuyền dài", "Đá phạt", "Sút xoáy", "Rê bóng", "Giữ bóng",
+    "Khéo léo", "Thăng bằng", "Phản ứng", "Kèm người", "Lấy bóng", "Cắt bóng", "Đánh đầu", "Xoạc bóng",
+    "Sức mạnh", "Thể lực", "Quyết đoán", "Nhảy", "Bình tĩnh"
+];
+
+// Khởi tạo Datalist cho khung tìm kiếm
+const dataList = document.getElementById('attr-list');
+ATTRIBUTES.forEach(attr => {
+    const option = document.createElement('option');
+    option.value = attr;
+    dataList.appendChild(option);
+});
+
+const POSITION_WEIGHTS = {
+    "ST": {2:18, 5:13, 15:10, 3:10, 22:10, 18:8, 14:7, 24:5, 0:5, 8:5, 1:4, 4:3, 6:2},
+    "CF": {15:15, 14:14, 5:13, 2:11, 18:9, 8:9, 9:8, 3:5, 0:5, 1:5, 4:4, 22:2},
+    "LW": {14:16, 15:14, 2:10, 5:9, 8:9, 10:9, 18:7, 1:7, 9:6, 0:6, 4:4, 16:3},
+    "CAM": {8:16, 15:15, 9:14, 14:13, 5:9, 18:7, 2:7, 4:5, 11:4, 1:4, 0:3, 16:3},
+    "LM": {14:15, 15:13, 8:11, 10:10, 5:8, 18:7, 1:7, 9:7, 2:6, 0:6, 25:5, 11:5},
+    "CM": {8:17, 15:14, 9:13, 11:13, 18:8, 14:7, 5:6, 25:6, 20:5, 21:5, 4:4, 2:2},
+    "CDM": {8:14, 21:14, 20:12, 15:10, 11:10, 19:9, 18:7, 25:6, 23:5, 26:5, 9:4, 24:4},
+    "LWB": {21:12, 10:12, 23:11, 8:10, 25:10, 20:8, 15:8, 18:8, 19:7, 0:6, 14:4, 1:4},
+    "LB": {23:14, 21:12, 20:11, 10:9, 25:8, 18:8, 19:8, 8:7, 15:7, 0:7, 1:5, 22:4},
+    "CB": {20:17, 19:14, 21:14, 23:10, 22:10, 24:10, 26:7, 18:5, 8:5, 15:4, 27:3, 0:2}
+};
+
+let baseStats = new Array(29).fill(0);
+let trainingPoints = new Array(29).fill(0);
+let tcBuffs = new Array(29).fill(0); // Mảng lưu Team Color
+
+let selectedLevel = 0;
+let selectedGrade = 0;
+let selectedBonus = 0;
+let currentBuff = 0;
+
+// Trạng thái Team Color
+let tcIndex1 = -1, tcVal1 = 0;
+let tcIndex2 = -1, tcVal2 = 0;
+
+function initEditor() {
+    const editor = document.getElementById('editor');
+    editor.innerHTML = '';
+    ATTRIBUTES.forEach((attr, index) => {
+        const div = document.createElement('div');
+        div.className = 'stat-item';
+        // Hiển thị ở phần Input: Base + Buff tổng hợp + Team Color cụ thể
+        const displayValue = baseStats[index] + currentBuff + tcBuffs[index];
+        div.innerHTML = `<span>${attr}</span><input type="number" value="${displayValue}" oninput="updateSingleStat(${index}, this.value)">`;
+        editor.appendChild(div);
+    });
+}
+
+function parseStats() {
+    const text = document.getElementById('rawInput').value;
+    const numbers = text.match(/\d+/g);
+    if (numbers && numbers.length >= 29) {
+        baseStats = numbers.slice(0, 29).map(Number);
+        
+        resetBuffWidget();
+        initEditor();
+        calculateAll();
+    }
+}
+
+// Lắng nghe thay đổi phần Buff Thẻ/Bonus
+function selectBuff(type, value, element) {
+    const buttons = document.querySelectorAll(`.btn-${type}`);
+    buttons.forEach(btn => btn.classList.remove('active'));
+    element.classList.add('active');
+
+    if (type === 'level') selectedLevel = parseInt(value);
+    if (type === 'grade') selectedGrade = parseInt(value);
+    if (type === 'bonus') selectedBonus = parseInt(value);
+
+    currentBuff = selectedLevel + selectedGrade + selectedBonus;
+    initEditor();
+    calculateAll();
+}
+
+// Logic Team Color
+function updateTeamColor() {
+    const val1 = document.getElementById('tc-input-1').value;
+    const val2 = document.getElementById('tc-input-2').value;
+    
+    tcIndex1 = ATTRIBUTES.indexOf(val1);
+    tcIndex2 = ATTRIBUTES.indexOf(val2);
+    
+    applyTeamColor();
+}
+
+function selectTc(slot, value, element) {
+    const buttons = document.querySelectorAll(`.btn-tc${slot}`);
+    buttons.forEach(btn => btn.classList.remove('active'));
+    element.classList.add('active');
+    
+    if (slot === 1) tcVal1 = value;
+    if (slot === 2) tcVal2 = value;
+    
+    applyTeamColor();
+}
+
+function applyTeamColor() {
+    tcBuffs.fill(0); // Reset
+    if (tcIndex1 !== -1) tcBuffs[tcIndex1] += tcVal1;
+    if (tcIndex2 !== -1) tcBuffs[tcIndex2] += tcVal2;
+    
+    initEditor(); // Reload lại bảng lưới
+    calculateAll();
+}
+
+function resetBuffWidget() {
+    selectedLevel = 0; selectedGrade = 0; selectedBonus = 0; currentBuff = 0;
+    tcVal1 = 0; tcVal2 = 0; tcIndex1 = -1; tcIndex2 = -1;
+    tcBuffs.fill(0);
+
+    // Reset UI thẻ
+    ['level', 'grade', 'bonus'].forEach(type => {
+        const buttons = document.querySelectorAll(`.btn-${type}`);
+        buttons.forEach(btn => btn.classList.remove('active'));
+        if(buttons.length > 0) buttons[0].classList.add('active');
+    });
+    
+    // Reset UI TC
+    document.getElementById('tc-input-1').value = "";
+    document.getElementById('tc-input-2').value = "";
+    ['tc1', 'tc2'].forEach(type => {
+        const buttons = document.querySelectorAll(`.btn-${type}`);
+        buttons.forEach(btn => btn.classList.remove('active'));
+        if(buttons.length > 0) buttons[0].classList.add('active');
+    });
+}
+
+function updateSingleStat(index, newValue) {
+    // Nếu người dùng tự chỉnh ô Input, phải trừ hao các buff ra để trả về base chuẩn
+    baseStats[index] = (parseInt(newValue) || 0) - currentBuff - tcBuffs[index];
+    calculateAll();
+}
+
+function calculateAll() {
+    const actualStats = baseStats.map((stat, i) => stat + currentBuff + tcBuffs[i] + trainingPoints[i]);
+
+    const p = {
+        Tocdo: actualStats[0], Tangtoc: actualStats[1], Dutdiem: actualStats[2],
+        Lucsut: actualStats[3], Sutxa: actualStats[4], Chonvitri: actualStats[5],
+        Vole: actualStats[6], Penalty: actualStats[7], Chuyenngan: actualStats[8],
+        Tamnhin: actualStats[9], Tatbong: actualStats[10], Chuyendai: actualStats[11],
+        Daphat: actualStats[12], Sutxoay: actualStats[13], Rebong: actualStats[14],
+        Giubong: actualStats[15], Kheoleo: actualStats[16], Thangbang: actualStats[17],
+        Phanung: actualStats[18], Kemnguoi: actualStats[19], Laybong: actualStats[20],
+        Catbong: actualStats[21], Danhdau: actualStats[22], Xoacbong: actualStats[23],
+        Sucmanh: actualStats[24], Theluc: actualStats[25], Quyetdoan: actualStats[26],
+        Nhay: actualStats[27], Binhtinh: actualStats[28]
+    };
+
+    const results = {
+        ST: Math.floor((p.Dutdiem*18 + p.Chonvitri*13 + p.Giubong*10 + p.Lucsut*10 + p.Danhdau*10 + p.Phanung*8 + p.Rebong*7 + p.Sucmanh*5 + p.Tocdo*5 + p.Chuyenngan*5 + p.Tangtoc*4 + p.Sutxa*3 + p.Vole*2) / 100),
+        CF: Math.floor((p.Giubong*15 + p.Rebong*14 + p.Chonvitri*13 + p.Dutdiem*11 + p.Phanung*9 + p.Chuyenngan*9 + p.Tamnhin*8 + p.Lucsut*5 + p.Tocdo*5 + p.Tangtoc*5 + p.Sutxa*4 + p.Danhdau*2) / 100),
+        CB: Math.floor((p.Laybong*17 + p.Kemnguoi*14 + p.Catbong*14 + p.Xoacbong*10 + p.Danhdau*10 + p.Sucmanh*10 + p.Quyetdoan*7 + p.Phanung*5 + p.Chuyenngan*5 + p.Giubong*4 + p.Nhay*3 + p.Tocdo*2) / 100),
+        CAM: Math.floor((p.Chuyenngan*16 + p.Giubong*15 + p.Tamnhin*14 + p.Rebong*13 + p.Chonvitri*9 + p.Phanung*7 + p.Dutdiem*7 + p.Sutxa*5 + p.Chuyendai*4 + p.Tangtoc*4 + p.Tocdo*3 + p.Kheoleo*3) / 100),
+        LW: Math.floor((p.Rebong*16 + p.Giubong*14 + p.Dutdiem*10 + p.Chonvitri*9 + p.Chuyenngan*9 + p.Tatbong*9 + p.Phanung*7 + p.Tangtoc*7 + p.Tamnhin*6 + p.Tocdo*6 + p.Sutxa*4 + p.Kheoleo*3) / 100),
+        LM: Math.floor((p.Rebong*15 + p.Giubong*13 + p.Chuyenngan*11 + p.Tatbong*10 + p.Chonvitri*8 + p.Phanung*7 + p.Tangtoc*7 + p.Tamnhin*7 + p.Dutdiem*6 + p.Tocdo*6 + p.Theluc*5 + p.Chuyendai*5) / 100),
+        CM: Math.floor((p.Chuyenngan*17 + p.Giubong*14 + p.Tamnhin*13 + p.Chuyendai*13 + p.Phanung*8 + p.Rebong*7 + p.Chonvitri*6 + p.Theluc*6 + p.Laybong*5 + p.Catbong*5 + p.Sutxa*4 + p.Dutdiem*2) / 100),
+        CDM: Math.floor((p.Chuyenngan*14 + p.Catbong*14 + p.Laybong*12 + p.Giubong*10 + p.Chuyendai*10 + p.Kemnguoi*9 + p.Phanung*7 + p.Theluc*6 + p.Xoacbong*5 + p.Quyetdoan*5 + p.Tamnhin*4 + p.Sucmanh*4) / 100),
+        LB: Math.floor((p.Xoacbong*14 + p.Catbong*12 + p.Laybong*11 + p.Tatbong*9 + p.Theluc*8 + p.Phanung*8 + p.Kemnguoi*8 + p.Chuyenngan*7 + p.Giubong*7 + p.Tocdo*7 + p.Tangtoc*5 + p.Danhdau*4) / 100),
+        LWB: Math.floor((p.Catbong*12 + p.Tatbong*12 + p.Xoacbong*11 + p.Chuyenngan*10 + p.Theluc*10 + p.Laybong*8 + p.Giubong*8 + p.Phanung*8 + p.Kemnguoi*7 + p.Tocdo*6 + p.Rebong*4 + p.Tangtoc*4) / 100)
+    };
+
+    const mapping = { ST: results.ST, CF: results.CF, LW: results.LW, RW: results.LW, LM: results.LM, RM: results.LM, CAM: results.CAM, CM: results.CM, CDM: results.CDM, CB: results.CB, SW: results.CB, LB: results.LB, RB: results.LB, LWB: results.LWB, RWB: results.LWB };
+    
+    for (const [pos, val] of Object.entries(mapping)) {
+        const el = document.getElementById(pos);
+        if (el) el.querySelector('.pos-ovr').innerText = val;
+    }
+}
+
+// Logic Đào tạo
+function changePosition() {
+    trainingPoints.fill(0);
+    renderTrainingStats();
+    calculateAll();
+}
+
+function renderTrainingStats() {
+    const pos = document.getElementById('posSelect').value;
+    const weights = POSITION_WEIGHTS[pos];
+    const list = document.getElementById('training-list');
+    list.innerHTML = '';
+
+    let statsArray = [];
+    for (const [idx, weight] of Object.entries(weights)) {
+        statsArray.push({ index: parseInt(idx), weight: weight, name: ATTRIBUTES[parseInt(idx)] });
+    }
+    statsArray.sort((a, b) => b.weight - a.weight);
+
+    statsArray.forEach(stat => {
+        const val = trainingPoints[stat.index];
+        const row = document.createElement('div');
+        row.className = 'training-row';
+        row.innerHTML = `
+            <span>${stat.name}</span>
+            <div class="training-controls">
+                <button class="btn-train minus ${val > 0 ? 'active' : ''}" onclick="updateTrain(${stat.index}, -1)">-</button>
+                <span class="train-val" id="train-val-${stat.index}">${val}</span>
+                <button class="btn-train plus" onclick="updateTrain(${stat.index}, 1)">+</button>
+            </div>
+        `;
+        list.appendChild(row);
+    });
+}
+
+function updateTrain(index, delta) {
+    let activeStatsCount = trainingPoints.filter(v => v > 0).length;
+    const currentVal = trainingPoints[index];
+
+    if (delta === 1) {
+        if (currentVal >= 2) return;
+        if (currentVal === 0 && activeStatsCount >= 5) {
+            alert('YOU ARE GAY!');
+            return;
+        }
+    } else if (delta === -1) {
+        if (currentVal <= 0) return;
+    }
+
+    trainingPoints[index] += delta;
+
+    const valSpan = document.getElementById(`train-val-${index}`);
+    if (valSpan) {
+        valSpan.innerText = trainingPoints[index];
+        const minusBtn = valSpan.previousElementSibling;
+        if(trainingPoints[index] > 0) {
+            minusBtn.classList.add('active');
+        } else {
+            minusBtn.classList.remove('active');
+        }
+    }
+
+    calculateAll();
+}
+
+// Khởi tạo
+initEditor();
+renderTrainingStats();
+calculateAll();
+</script>
+</body>
+</html>
