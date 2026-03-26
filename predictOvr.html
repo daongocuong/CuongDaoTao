@@ -48,6 +48,14 @@
         .btn-tc { background: #ff8de8; color: #fff; }
         .btn-tc.active { background: #fd2d87; color: #fff; }
 
+        /* Nút thêm/xóa Team Color */
+        .tc-actions { display: flex; gap: 10px; justify-content: center; margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px;}
+        .btn-tc-add, .btn-tc-remove { padding: 8px 15px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; color: #fff; transition: 0.2s; display: flex; align-items: center; gap: 5px; }
+        .btn-tc-add { background: #2e7d32; }
+        .btn-tc-add:hover { background: #1b5e20; }
+        .btn-tc-remove { background: #d32f2f; }
+        .btn-tc-remove:hover { background: #b71c1c; }
+
         /* Input tìm kiếm Team Color */
         .tc-input { flex: 1; min-width: 140px; padding: 0 10px; height: 36px; border-radius: 4px; border: 1px solid #ccc; font-weight: bold; margin-right: 10px; outline: none; }
         .tc-input:focus { border-color: #f71197; box-shadow: 0 0 5px rgba(238, 28, 130, 0.3); }
@@ -199,27 +207,12 @@
                 <span id="tc-icon">▲</span>
             </button>
             <div class="collapsible-content" id="tc-content" style="display: none;">
-                <div class="fo4-buff-widget">
-                    <div class="buff-row">
-                        <div class="buff-label lbl-tc">Chọn 1</div>
-                        <input list="attr-list" class="tc-input" id="tc-input-1" placeholder="Tìm chỉ số..." onchange="updateTeamColor()">
-                        <div class="buff-btns-container">
-                            <button class="buff-btn btn-tc btn-tc1 active" onclick="selectTc(1, 0, this)">0</button>
-                            <button class="buff-btn btn-tc btn-tc1" onclick="selectTc(1, 1, this)">+1</button>
-                            <button class="buff-btn btn-tc btn-tc1" onclick="selectTc(1, 2, this)">+2</button>
-                            <button class="buff-btn btn-tc btn-tc1" onclick="selectTc(1, 3, this)">+3</button>
-                        </div>
+                <div class="fo4-buff-widget" id="tc-container">
                     </div>
-                    <div class="buff-row" style="margin-top: 15px;">
-                        <div class="buff-label lbl-tc">Chọn 2</div>
-                        <input list="attr-list" class="tc-input" id="tc-input-2" placeholder="Tìm chỉ số..." onchange="updateTeamColor()">
-                        <div class="buff-btns-container">
-                            <button class="buff-btn btn-tc btn-tc2 active" onclick="selectTc(2, 0, this)">0</button>
-                            <button class="buff-btn btn-tc btn-tc2" onclick="selectTc(2, 1, this)">+1</button>
-                            <button class="buff-btn btn-tc btn-tc2" onclick="selectTc(2, 2, this)">+2</button>
-                            <button class="buff-btn btn-tc btn-tc2" onclick="selectTc(2, 3, this)">+3</button>
-                        </div>
-                    </div>
+                
+                <div class="tc-actions">
+                    <button class="btn-tc-add" onclick="addTcRow()"><span>+</span> Thêm ô</button>
+                    <button class="btn-tc-remove" onclick="removeTcRow()"><span>-</span> Bớt ô</button>
                 </div>
             </div>
         </div>
@@ -333,16 +326,18 @@ const POSITION_WEIGHTS = {
 
 let baseStats = new Array(29).fill(0);
 let trainingPoints = new Array(29).fill(0);
-let tcBuffs = new Array(29).fill(0); // Mảng lưu Team Color
+let tcBuffs = new Array(29).fill(0); 
 
 let selectedLevel = 0;
 let selectedGrade = 0;
 let selectedBonus = 0;
 let currentBuff = 0;
 
-// Trạng thái Team Color
-let tcIndex1 = -1, tcVal1 = 0;
-let tcIndex2 = -1, tcVal2 = 0;
+// Mảng chứa các ô Team Color động
+let teamColors = [
+    { index: -1, val: 0 },
+    { index: -1, val: 0 } // Mặc định mở lên có sẵn 2 ô cho quen thuộc
+];
 
 function initEditor() {
     const editor = document.getElementById('editor');
@@ -384,32 +379,67 @@ function selectBuff(type, value, element) {
     calculateAll();
 }
 
-// Logic Team Color
-function updateTeamColor() {
-    const val1 = document.getElementById('tc-input-1').value;
-    const val2 = document.getElementById('tc-input-2').value;
+// --- Logic DYNAMIC Team Color ---
+function renderTcRows() {
+    const container = document.getElementById('tc-container');
+    container.innerHTML = ''; // Xóa hết để vẽ lại
     
-    tcIndex1 = ATTRIBUTES.indexOf(val1);
-    tcIndex2 = ATTRIBUTES.indexOf(val2);
-    
+    teamColors.forEach((tc, i) => {
+        const row = document.createElement('div');
+        row.className = 'buff-row';
+        row.style.marginTop = i > 0 ? '15px' : '0';
+        
+        // Ghi nhớ tên chỉ số để gán lại vào input khi render
+        const attrName = tc.index !== -1 ? ATTRIBUTES[tc.index] : '';
+
+        row.innerHTML = `
+            <div class="buff-label lbl-tc">Chọn ${i + 1}</div>
+            <input list="attr-list" class="tc-input" placeholder="Tìm chỉ số..." value="${attrName}" onchange="updateDynamicTc(${i}, this.value)">
+            <div class="buff-btns-container">
+                <button class="buff-btn btn-tc ${tc.val === 0 ? 'active' : ''}" onclick="selectDynamicTc(${i}, 0, this)">0</button>
+                <button class="buff-btn btn-tc ${tc.val === 1 ? 'active' : ''}" onclick="selectDynamicTc(${i}, 1, this)">+1</button>
+                <button class="buff-btn btn-tc ${tc.val === 2 ? 'active' : ''}" onclick="selectDynamicTc(${i}, 2, this)">+2</button>
+                <button class="buff-btn btn-tc ${tc.val === 3 ? 'active' : ''}" onclick="selectDynamicTc(${i}, 3, this)">+3</button>
+            </div>
+        `;
+        container.appendChild(row);
+    });
+}
+
+function addTcRow() {
+    teamColors.push({ index: -1, val: 0 });
+    renderTcRows();
+}
+
+function removeTcRow() {
+    if (teamColors.length > 0) {
+        teamColors.pop(); // Xóa phần tử cuối
+        renderTcRows();
+        applyTeamColor(); // Cập nhật lại stat ngay lập tức
+    }
+}
+
+function updateDynamicTc(index, attrName) {
+    teamColors[index].index = ATTRIBUTES.indexOf(attrName);
     applyTeamColor();
 }
 
-function selectTc(slot, value, element) {
-    const buttons = document.querySelectorAll(`.btn-tc${slot}`);
-    buttons.forEach(btn => btn.classList.remove('active'));
-    element.classList.add('active');
+function selectDynamicTc(index, val, btn) {
+    const btns = btn.parentElement.querySelectorAll('.btn-tc');
+    btns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
     
-    if (slot === 1) tcVal1 = value;
-    if (slot === 2) tcVal2 = value;
-    
+    teamColors[index].val = val;
     applyTeamColor();
 }
 
 function applyTeamColor() {
-    tcBuffs.fill(0); // Reset
-    if (tcIndex1 !== -1) tcBuffs[tcIndex1] += tcVal1;
-    if (tcIndex2 !== -1) tcBuffs[tcIndex2] += tcVal2;
+    tcBuffs.fill(0); // Reset tổng TC buff
+    teamColors.forEach(tc => {
+        if (tc.index !== -1) {
+            tcBuffs[tc.index] += tc.val;
+        }
+    });
     
     initEditor(); // Reload lại bảng lưới
     calculateAll();
@@ -417,20 +447,17 @@ function applyTeamColor() {
 
 function resetBuffWidget() {
     selectedLevel = 0; selectedGrade = 0; selectedBonus = 0; currentBuff = 0;
-    tcVal1 = 0; tcVal2 = 0; tcIndex1 = -1; tcIndex2 = -1;
     tcBuffs.fill(0);
+    
+    // Reset Team Color về mảng rỗng (2 ô mặc định)
+    teamColors = [
+        { index: -1, val: 0 },
+        { index: -1, val: 0 }
+    ];
+    renderTcRows();
 
     // Reset UI thẻ
     ['level', 'grade', 'bonus'].forEach(type => {
-        const buttons = document.querySelectorAll(`.btn-${type}`);
-        buttons.forEach(btn => btn.classList.remove('active'));
-        if(buttons.length > 0) buttons[0].classList.add('active');
-    });
-    
-    // Reset UI TC
-    document.getElementById('tc-input-1').value = "";
-    document.getElementById('tc-input-2').value = "";
-    ['tc1', 'tc2'].forEach(type => {
         const buttons = document.querySelectorAll(`.btn-${type}`);
         buttons.forEach(btn => btn.classList.remove('active'));
         if(buttons.length > 0) buttons[0].classList.add('active');
@@ -522,7 +549,7 @@ function updateTrain(index, delta) {
     if (delta === 1) {
         if (currentVal >= 2) return;
         if (currentVal === 0 && activeStatsCount >= 5) {
-            alert('YOU ARE GAY!');
+            alert('Chỉ được phép nâng cấp tối đa 5 chỉ số!');
             return;
         }
     } else if (delta === -1) {
@@ -545,11 +572,11 @@ function updateTrain(index, delta) {
     calculateAll();
 }
 
-// Khởi tạo
+// Khởi tạo ban đầu
+renderTcRows();
 initEditor();
 renderTrainingStats();
 calculateAll();
 </script>
 </body>
-
 </html>
